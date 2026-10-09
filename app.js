@@ -474,22 +474,39 @@ VIEWS.match = {
   }
 };
 
-/* 这首歌的片段是否「大概率唱到令字」：歌名/命中词/歌词本身含令字 */
-function songHitsWord(e, word){
-  if(!e) return false;
-  const key=(word||'').replace(/[+]/g,'');
-  const inTitle=(e.s||'').includes(key);
-  const inHit=(e.hit||'').includes(key);
-  return inTitle || inHit;
+/* 给一句歌词打分：越可能在试听片段里唱到令字，分越高 */
+function scoreLine(e, word){
+  if(!e || !e.s) return -1;
+  let sc = 0;
+  const hasClip = !!musicOf(e.s);
+  if(hasClip) sc += 4; else sc -= 6;              /* 没有版权片段直接压到底 */
+  const lyric = (e.l||'').replace(/\s/g,'');
+  const title = (e.s||'').replace(/[（(].*?[)）]/g,'').trim();
+  const titleKey = title.replace(/\s/g,'');
+  if(title.includes(word)) sc += 4;               /* 歌名含令字：副歌极可能唱到 */
+  if(titleKey && lyric.includes(titleKey)) sc += 3; /* 歌词里就是歌名 = 副歌 hook */
+  if((e.l||'').includes(word)) sc += 2;            /* 歌词含令字 */
+  if((e.hit||'').includes(word)) sc += 2;
+  return sc;
 }
-/* 为某个令字挑一句：优先级 = 有版权片段且含令字 > 有版权片段 > 全部 */
-function pickLineFor(word){
-  const bank=(BANK[word]||[]).slice();
-  if(!bank.length) return null;
-  const withClipHit=bank.filter(e=>musicOf(e.s)&&songHitsWord(e,word));
-  const withClip=bank.filter(e=>musicOf(e.s));
-  const pool = withClipHit.length? withClipHit : (withClip.length? withClip : bank);
-  return rnd(pool);
+/* 为某个令字挑一句：取分数最高的若干条里随机 */
+function pickLineFor(word, usedLyrics){
+  const all=(BANK[word]||[]).slice();
+  if(!all.length) return null;
+  /* 第一优先：只从「有版权片段」的歌里选，绝不退回纯音乐 */
+  const withClip=all.filter(e=>musicOf(e.s));
+  const base = withClip.length ? withClip : all;
+  let pool = base;
+  /* 第二优先：本局没唱过的歌词，减少同句折叠 */
+  if(usedLyrics && usedLyrics.length){
+    const used=new Set(usedLyrics);
+    const fresh=base.filter(e=>!used.has(e.l));
+    if(fresh.length) pool=fresh;
+  }
+  /* 第三优先：取分数最高的若干条（歌名含令字 / 歌词即歌名 hook） */
+  const scored=pool.map(e=>({e, s:scoreLine(e, word)}));
+  const max=Math.max.apply(null, scored.map(x=>x.s));
+  return rnd(scored.filter(x=>x.s===max).map(x=>x.e));
 }
 function pickWord(type){ const pool=WORD_POOL[type]; return rnd(pool); }
 function prefSummary(){ const o=[]; ['lang','era','genre','singer'].forEach(g=>{ if(S.prefs[g]&&S.prefs[g].length) o.push(S.prefs[g].join('/')); }); return o.join(' · '); }
@@ -914,7 +931,7 @@ async function startTurn(){
   const p=curPlayer();
   const alive=()=>S.room===r && !r.over && !r.abandoned && curPlayer()===p;
   if(p.id==='me'){
-    r.thinking = !isAudioIdle();                 /* 上一位还在放就先等 */
+    r.thinking = !isAudioIdle();                 /* 规则：上一位的歌没放完，下一位不能开口 */
     renderTabs(); renderRecBar();
     if(r.thinking){
       await waitAudioIdle();
@@ -944,13 +961,17 @@ function npcSing(p){
   let ok = Math.random()<0.86;   /* NPC 也会偶尔接错，但以唱对为主 */
   let lyric, song, artist, hit, m='literal', reason='';
   if(ok && bank.length){
-    const e=pickLineFor(r.word)||rnd(bank); lyric=e.l; song=e.s; artist=e.a; hit=e.hit; m=e.m;
+    const used=r.feed.filter(x=>!x.sys).map(x=>x.lyric);
+    const e=pickLineFor(r.word, used)||rnd(bank); lyric=e.l; song=e.s; artist=e.a; hit=e.hit; m=e.m;
   } else if(!ok){
-    // 故意唱错：取别的字的歌词，或漏掉关键字
-    const otherKey=Object.keys(BANK).filter(k=>k!==r.word);
-    const oe=rnd(BANK[rnd(otherKey)]); lyric=oe.l; song=oe.s; artist=oe.a; hit=oe.hit;
+    /* 唱错也要挑「有版权片段」的歌，绝不退回纯旋律 */
+    const other=Object.keys(BANK).filter(k=>k!==r.word);
+    const pool=[];
+    other.forEach(k=>(BANK[k]||[]).forEach(e=>{ if(musicOf(e.s)) pool.push(e); }));
+    const oe = pool.length? rnd(pool) : rnd(BANK[rnd(other)]);
+    lyric=oe.l; song=oe.s; artist=oe.a; hit=oe.hit;
     reason = `歌词不含「${r.word}」`;
-  } else { const e=rnd(bank.length?bank:BANK['月']); lyric=e.l;song=e.s;artist=e.a;hit=e.hit;m=e.m; }
+  } else { const e=pickLineFor(r.word)||rnd(bank); lyric=e.l;song=e.s;artist=e.a;hit=e.hit;m=e.m; }
   // 禁字/炸弹判定
   if(r.banned && lyric.includes(r.banned)){ ok=false; reason=`唱出了禁字「${r.banned}」`; }
   if(r.play==='bomb' && ok){
@@ -1015,8 +1036,8 @@ function renderRecBar(){
           <circle id="ringfg" cx="32" cy="32" r="27" fill="none" stroke="#3C6E5D" stroke-width="6" stroke-linecap="round" stroke-dasharray="169.6" stroke-dashoffset="0"/></svg>
           <div class="num serif" id="timenum">8</div>
         </div>
-        <button class="recbtn" id="recbtn"><span class="holdingwave"><i></i><i></i><i></i><i></i><i></i></span><span id="reclabel">按住唱这一句</span></button>
-        <button class="recbtn alt" id="typeBtn" title="手写歌词">✍</button>
+        <button class="recbtn" id="recbtn" ${r.thinking?'disabled':''}><span class="holdingwave"><i></i><i></i><i></i><i></i><i></i></span><span id="reclabel">${r.thinking?'上一首还没放完，稍等…':'按住唱这一句'}</span></button>
+        <button class="recbtn alt" id="typeBtn" ${r.thinking?'disabled':''} title="手写歌词">✍</button>
       `:`
         <div class="timering"><svg width="64" height="64"><circle cx="32" cy="32" r="27" fill="none" stroke="#E4DACA" stroke-width="6"/></svg><div class="num serif">♪</div></div>
         <button class="recbtn npc" disabled><span id="reclabel">${r.thinking? esc(p.name)+' 正在想…' : esc(p.name)+' 正在接歌…'}</span></button>
@@ -1024,7 +1045,7 @@ function renderRecBar(){
     </div>
     <div style="margin-top:10px"><div class="muted" style="font-size:11px;margin-bottom:8px">技能卡（累计通过 3 次得 1 张）· 当前进度 ${S.skill.pass}/3</div><div class="tray" id="tray"></div></div>`;
   renderTray();
-  if(mine){
+  if(mine && !r.thinking){
     const btn=$('#recbtn');
     btn.addEventListener('pointerdown',e=>{ e.preventDefault(); beginRec(); });
     btn.addEventListener('pointerup',e=>{ e.preventDefault(); endRec(); });
@@ -1067,7 +1088,7 @@ function startTimer(){
   },100);
 }
 async function beginRec(){
-  if(recording||turnDone||curPlayer().id!=='me') return;
+  if(recording||turnDone||S.room.thinking||curPlayer().id!=='me') return;
   recording=true;
   const b=$('#recbtn'); if(b) b.classList.add('holding');
   const w=document.querySelector('#recbtn .holdingwave');
@@ -1087,7 +1108,7 @@ async function endRec(cancel){
     const r=S.room, p=curPlayer();
     const bank=BANK[r.word]||BANK['月'];
     let res;
-    if(Math.random()<0.8){ const e=pickLineFor(r.word)||rnd(bank); res={lyric:e.l,song:e.s,artist:e.a,hit:e.hit,m:e.m,ok:true,caption:e.m==='semantic'?'AI 语义判定':'AI 识别'}; }
+    if(Math.random()<0.8){ const used=r.feed.filter(x=>!x.sys).map(x=>x.lyric); const e=pickLineFor(r.word, used)||rnd(bank); res={lyric:e.l,song:e.s,artist:e.a,hit:e.hit,m:e.m,ok:true,caption:e.m==='semantic'?'AI 语义判定':'AI 识别'}; }
     else { const otherKey=Object.keys(BANK).filter(k=>k!==r.word); const oe=rnd(BANK[rnd(otherKey)]); res={lyric:oe.l,song:oe.s,artist:oe.a,hit:oe.hit,m:'literal',ok:false,reason:`AI 识别到的歌词不含「${r.word}」`,clue:clueFor(r.word)}; }
     if(r.banned && res.lyric.includes(r.banned)){ res.ok=false; res.reason=`唱出了禁字「${r.banned}」`; }
     if(clip){ res.audioUrl=clip.url; res.audioDur=clip.dur; }
