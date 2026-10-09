@@ -6,4 +6,4 @@ pairs.json
 Thumbs.db
 
 app.bak.js
-*.bak.js
+*.bak*.js
