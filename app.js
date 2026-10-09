@@ -200,25 +200,22 @@ function playReal(song, artist, maxSec){
 }
 /* 合成伴奏也纳入「是否还在响」的判断（Web Audio 不走 <audio> 元素） */
 let melodyUntil=0;
+function melodyLeft(){ return Math.max(0, melodyUntil - Date.now()); }
 function isAudioIdle(){
   const a=audioEl;
-  const audioIdle = !a || !a.src || a.paused || a.ended;
-  return audioIdle && Date.now()>=melodyUntil;
+  if(!a || !a.src) return melodyLeft()<=0;
+  const ended = a.ended || a.paused || (a.duration>0 && a.currentTime >= a.duration-0.15);
+  return ended && melodyLeft()<=0;
 }
-/* 等上一位把音乐/伴奏彻底放完（最多等 maxMs） */
-function waitAudioIdle(maxMs=40000){
-  const a=audioEl;
-  const audioIdle = !a || !a.src || a.paused || a.ended;
-  const melodyMs = Math.max(0, melodyUntil - Date.now());
-  if(audioIdle && melodyMs<=0) return Promise.resolve();
+/* 等上一位把音乐/伴奏彻底放完：用轮询而不是事件，避免错过 ended 时序 */
+function waitAudioIdle(maxMs=34000){
+  const t0=Date.now();
   return new Promise(res=>{
-    let done=false;
-    const fin=()=>{ if(done) return; done=true;
-      try{ if(a&&a.removeEventListener){ a.removeEventListener('ended',fin); a.removeEventListener('pause',fin); } }catch(e){}
-      clearTimeout(t1); clearTimeout(t2); res(); };
-    if(!audioIdle && a){ a.addEventListener('ended',fin); a.addEventListener('pause',fin); }
-    const t1=setTimeout(fin, Math.max(melodyMs,0));
-    const t2=setTimeout(fin, maxMs);
+    const tick=()=>{
+      if(isAudioIdle() || Date.now()-t0>=maxMs) return res();
+      setTimeout(tick,180);
+    };
+    tick();
   });
 }
 /* 无版权片段时的「合成伴奏」：只放旋律，绝不朗读 */
@@ -234,9 +231,10 @@ function playMelodyOnly(song, sec){
 function playAutoSong(song, maxSec){
   if(!song || song==='—') return Promise.resolve(false);
   const e=musicOf(song);
-  if(!e) return playMelodyOnly(song, Math.min(maxSec||10,8));
+  const sec = maxSec!=null ? maxSec : (S.clipSec||20);
+  if(!e) return playMelodyOnly(song, Math.min(sec,8));
   nowPlaying={song, artist:e.a, kind:'real'};
-  return playReal(song, e.a, maxSec||10);
+  return playReal(song, e.a, sec);
 }
 function togglePlay(){ const a=getAudio(); if(!a.src) return; if(a.paused){ a.play(); paintPlayerBar({...nowPlaying,playing:true}); } else { a.pause(); paintPlayerBar({...nowPlaying,playing:false}); } }
 function stopAllAudio(){
@@ -269,6 +267,7 @@ const S = {
   chain:[],
   skill:{pass:0, owned:{}, earned:[]},
   turnSec:30,
+  clipSec:20,          // 每条接歌播放的片段时长（秒）
   stats:{songs:18, wins:6, bestStreak:5, matches:9, archived:3},
   matches:[{word:'月',type:'single',play:'standard',score:3,mvp:'我',time:'今天 20:12'},{word:'雨',type:'single',play:'bomb',score:2,mvp:'阿令',time:'昨天 21:40'},{word:'风',type:'combo',play:'standard',score:4,mvp:'我',time:'10-07 19:20'}],
   myPlaylist:[{song:'但愿人长久',artist:'王菲'},{song:'城里的月光',artist:'许美静'},{song:'东风破',artist:'周杰伦'}],
@@ -475,6 +474,23 @@ VIEWS.match = {
   }
 };
 
+/* 这首歌的片段是否「大概率唱到令字」：歌名/命中词/歌词本身含令字 */
+function songHitsWord(e, word){
+  if(!e) return false;
+  const key=(word||'').replace(/[+]/g,'');
+  const inTitle=(e.s||'').includes(key);
+  const inHit=(e.hit||'').includes(key);
+  return inTitle || inHit;
+}
+/* 为某个令字挑一句：优先级 = 有版权片段且含令字 > 有版权片段 > 全部 */
+function pickLineFor(word){
+  const bank=(BANK[word]||[]).slice();
+  if(!bank.length) return null;
+  const withClipHit=bank.filter(e=>musicOf(e.s)&&songHitsWord(e,word));
+  const withClip=bank.filter(e=>musicOf(e.s));
+  const pool = withClipHit.length? withClipHit : (withClip.length? withClip : bank);
+  return rnd(pool);
+}
 function pickWord(type){ const pool=WORD_POOL[type]; return rnd(pool); }
 function prefSummary(){ const o=[]; ['lang','era','genre','singer'].forEach(g=>{ if(S.prefs[g]&&S.prefs[g].length) o.push(S.prefs[g].join('/')); }); return o.join(' · '); }
 function newRoom(type,word,mode,players,play){
@@ -799,7 +815,7 @@ async function playVoiceText(btn, text, song, artist, audioUrl){
   Voice.beep(720,.07,'sine',.05);
   const found = song?{s:song,a:artist}:songForLyric(text);
   let ok=false;
-  if(found&&found.s) ok = await playReal(found.s, found.a, 12);
+  if(found&&found.s) ok = await playReal(found.s, found.a, S.clipSec||20);
   if(!ok) await playMelodyOnly((found&&found.s)||'未收录曲目', 6);
   btn.classList.remove('on'); btn.textContent='▶'; if(w) w.classList.remove('playing');
 }
@@ -925,10 +941,10 @@ function renderTabs(){
 function npcSing(p){
   const r=S.room;
   const bank=BANK[r.word]||[];
-  let ok = Math.random()<0.82;
+  let ok = Math.random()<0.86;   /* NPC 也会偶尔接错，但以唱对为主 */
   let lyric, song, artist, hit, m='literal', reason='';
   if(ok && bank.length){
-    const e=rnd(bank); lyric=e.l; song=e.s; artist=e.a; hit=e.hit; m=e.m;
+    const e=pickLineFor(r.word)||rnd(bank); lyric=e.l; song=e.s; artist=e.a; hit=e.hit; m=e.m;
   } else if(!ok){
     // 故意唱错：取别的字的歌词，或漏掉关键字
     const otherKey=Object.keys(BANK).filter(k=>k!==r.word);
@@ -962,14 +978,13 @@ function addEntry(p,res){
     if(!r.playlist.find(x=>x.song===res.song)) r.playlist.push({song:res.song,artist:res.artist,by:p.name});
     // 第二层：同句归并
     const same=r.feed.find(e=>e.lyric===res.lyric);
-    if(same){ same.folded.push({who:p.name,color:p.color,initial:p.initial}); renderFeed(); if(Voice.on){ if(res.audioUrl) playClip(null,res.audioUrl,'我的录音','接歌原声'); else playAutoSong(res.song,10); } recordSkill(p); return; }
+    if(same){ same.folded.push({who:p.name,color:p.color,initial:p.initial}); renderFeed(); if(Voice.on){ if(res.audioUrl) playClip(null,res.audioUrl,'我的录音','接歌原声'); else playAutoSong(res.song); } recordSkill(p); return; }
   } else { p.streak=0; }
   r.feed.push(base); renderFeed(); renderTabs(); recordSkill(p);
   /* 直接放声音：玩家放自己刚录的原声，NPC 放接入的真实音乐片段（不再用 AI 朗读） */
   if(Voice.on && !/^（/.test(res.lyric||'')){
     if(base.audioUrl) playClip(null, base.audioUrl, '我的录音', base.song&&base.song!=='—'?('接歌 · '+base.song):'接歌原声');
-    else if(!p.isNpc) playAutoSong(base.song, 10);
-    else playAutoSong(base.song, 10);
+    else playAutoSong(base.song); /* 完整 30 秒片段，尽量唱到含令字那一句 */
   }
   if(!res.ok){ inkFx(); }
 }
@@ -1072,7 +1087,7 @@ async function endRec(cancel){
     const r=S.room, p=curPlayer();
     const bank=BANK[r.word]||BANK['月'];
     let res;
-    if(Math.random()<0.8){ const e=rnd(bank); res={lyric:e.l,song:e.s,artist:e.a,hit:e.hit,m:e.m,ok:true,caption:e.m==='semantic'?'AI 语义判定':'AI 识别'}; }
+    if(Math.random()<0.8){ const e=pickLineFor(r.word)||rnd(bank); res={lyric:e.l,song:e.s,artist:e.a,hit:e.hit,m:e.m,ok:true,caption:e.m==='semantic'?'AI 语义判定':'AI 识别'}; }
     else { const otherKey=Object.keys(BANK).filter(k=>k!==r.word); const oe=rnd(BANK[rnd(otherKey)]); res={lyric:oe.l,song:oe.s,artist:oe.a,hit:oe.hit,m:'literal',ok:false,reason:`AI 识别到的歌词不含「${r.word}」`,clue:clueFor(r.word)}; }
     if(r.banned && res.lyric.includes(r.banned)){ res.ok=false; res.reason=`唱出了禁字「${r.banned}」`; }
     if(clip){ res.audioUrl=clip.url; res.audioDur=clip.dur; }
@@ -1367,7 +1382,7 @@ function duelTurn(timeout,text){
     setTimeout(()=>{
       const bank=BANK[d.word]||BANK['月']; const e=rnd(bank);
       d.log.push({who:'ai',name:P.name,txt:e.l,hit:e.hit,song:e.s}); d.aiScore+=Math.random()<0.8?1:0; renderDuel();
-      if(Voice.on) playAutoSong(e.s, 10);
+      if(Voice.on) playAutoSong(e.s);
       const h2=$('#duelhint'); if(h2) h2.textContent='轮到你了';
       const l2=$('#dreclabel'); if(l2) l2.textContent='按住唱这一句';
     }, wait);
@@ -1536,6 +1551,8 @@ VIEWS.me = {
       <div class="card" style="padding:4px 14px">
         <div class="soundrow"><div><b class="serif" style="font-size:13px">接歌时长</b><div class="muted" style="font-size:11px">每回合限时，超时算负（文档原设定为 8 秒）</div></div>
           <div class="chips">${[8,15,20,30].map(x=>`<button class="chip ${S.turnSec===x?'active':''}" data-sec="${x}">${x}s</button>`).join('')}</div></div>
+        <div class="soundrow"><div><b class="serif" style="font-size:13px">接歌片段时长</b><div class="muted" style="font-size:11px">每条接歌播放多长的原唱片段（30 秒是官方试听上限）</div></div>
+          <div class="chips">${[10,20,30].map(x=>`<button class="chip ${S.clipSec===x?'active':''}" data-clip="${x}">${x}s</button>`).join('')}</div></div>
         <div class="soundrow"><div><b class="serif" style="font-size:13px">接歌声音播放</b><div class="muted" style="font-size:11px">直接播放接入的真实原唱片段（不再 AI 朗读）；无版权片段时只放合成伴奏</div></div><div class="switch ${Voice.on?'on':''}" id="swVoice"><i></i></div></div>
         <div class="soundrow"><div><b class="serif" style="font-size:13px">默认不留档</b><div class="muted" style="font-size:11px">本局音频默认不进「字·飞花总库」</div></div><div class="switch on"><i></i></div></div>
         <div class="soundrow"><div><b class="serif" style="font-size:13px">授权用于 AI 训练</b><div class="muted" style="font-size:11px">让 AI 1v1 更懂「人会怎么接」</div></div><div class="switch on"><i></i></div></div>
@@ -1547,6 +1564,7 @@ VIEWS.me = {
   mount(){
     $('#swVoice').onclick=()=>{ Voice.on=!Voice.on; if(!Voice.on) Voice.cancel(); render(); toast(Voice.on?'已开启接歌语音播放':'已关闭接歌语音播放'); };
     $$('[data-sec]').forEach(el=>el.onclick=()=>{ S.turnSec=+el.dataset.sec; render(); toast(`接歌时长已设为 ${S.turnSec} 秒`); });
+    $$('[data-clip]').forEach(el=>el.onclick=()=>{ S.clipSec=+el.dataset.clip; render(); toast(`接歌片段已设为 ${S.clipSec} 秒`); });
     $$('[data-me]').forEach(el=>el.onclick=()=>{
       const k=el.dataset.me;
       if(k==='cards') go('cards');

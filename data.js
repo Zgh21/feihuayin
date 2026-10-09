@@ -267,6 +267,14 @@ const GROUPS = [
    真实原唱片段 · Apple Music 官方 30 秒试听（直连 CDN，无需 CORS）
    逐首验证可播放；未收录的歌曲自动回退到「合成试听」
    ============================================================ */
+/* ============================================================
+   真实原唱片段 · 官方音乐库 30 秒试听（直连 CDN，无需 CORS）
+   逐首验证可播放；未收录的歌曲自动回退为「合成伴奏」（纯旋律，不朗读）
+   ============================================================ */
+/* ============================================================
+   真实原唱片段 · 官方音乐库 30 秒试听（直连 CDN，无需 CORS）
+   逐首验证可播放；未收录的歌曲自动回退为「合成伴奏」（纯旋律，不朗读）
+   ============================================================ */
 const MUSIC = {
   "城里的月光": { u:"https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/c2/68/20/c26820a5-45b2-67e2-1645-53afdfbd58ac/mzaf_3503597938388484198.plus.aac.p.m4a", a:"Mavis Hee, Silence Wang, Tracy Wang & Julius" },
   "月亮之上": { u:"https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/b1/fb/0b/b1fb0b79-6e2f-07ad-ec8c-c015573c96f7/mzaf_15480878697614126301.plus.aac.p.m4a", a:"鳳凰傳奇" },
@@ -293,4 +301,52 @@ const MUSIC = {
   "花海": { u:"https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/da/0c/0a/da0c0ab8-45b9-18e8-ada2-5dbda4e2e1d2/mzaf_11304493498199301750.plus.aac.p.m4a", a:"Jay Chou" },
   "山路十八弯": { u:"https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview115/v4/f2/09/0a/f2090a3a-7471-7400-059d-65ff8adaa956/mzaf_1768133686144242671.plus.aac.p.m4a", a:"李瓊" },
   "宣州谢脁楼饯别校书叔云": { u:"https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview221/v4/9a/48/d5/9a48d5bc-607d-4c41-178b-5e0b37477cf3/mzaf_787182069528077892.plus.aac.p.m4a", a:"Renaissance Music & 瑶台墨月" },
+  "但愿人长久": { u:"https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview122/v4/41/7a/d1/417ad136-5e78-d90a-69a3-5bdae20092c1/mzaf_13084538566557688349.plus.aac.p.m4a", a:"珠影乐团" },
+  "风继续吹": { u:"https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/bf/93/a9/bf93a90a-df60-1c6c-6a72-55cb28519817/mzaf_6815738147439457414.plus.aac.p.m4a", a:"周明明" },
+  "雾里看花": { u:"https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview221/v4/29/0b/11/290b113b-d83b-fc7a-b1bb-3f1581ea0430/mzaf_12141315816627793239.plus.aac.p.m4a", a:"Na Ying" },
+  "花田错": { u:"https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview115/v4/d0/cc/41/d0cc41bb-98d3-2b94-d66e-24a27b7402d8/mzaf_12914349748595216872.plus.aac.p.m4a", a:"Qing Feng Wu" },
+  "酒干倘卖无": { u:"https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/aa/ca/f6/aacaf67c-8c43-8c09-8ce6-1c5a76d94238/mzaf_10180716126132298589.plus.aac.p.m4a", a:"朱敏 & 王萍" },
+  "一壶老酒": { u:"https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview125/v4/ba/84/0f/ba840f62-54c3-8d72-3675-6246a49d5bb3/mzaf_5109349686196331325.plus.aac.p.m4a", a:"陆树铭" },
+  "平凡之路": { u:"https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview221/v4/a7/75/21/a77521d4-d3f3-cbc6-5378-7a724405ee79/mzaf_2541455394975833667.plus.aac.p.m4a", a:"朴樹" },
+  "山丘": { u:"https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview221/v4/d1/64/cb/d164cb4f-fa15-b864-9161-dad074451384/mzaf_13918210559293677850.plus.aac.p.m4a", a:"李宗盛" },
+  "野花": { u:"https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview221/v4/8a/13/7b/8a137bfa-921e-0307-58cc-e44f526b0dc0/mzaf_6647777473170567891.plus.aac.p.m4a", a:"田震" },
+  "我的未来不是梦": { u:"https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/4c/ba/84/4cba8455-8e4c-8238-3ad2-7633c2d2deb8/mzaf_12851127854666565826.plus.aac.p.m4a", a:"張雨生" },
+  "梦一场": { u:"https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/61/2e/a1/612ea194-ca88-dd4a-ae89-f39e46f1243b/mzaf_8895424231685498187.plus.aac.p.m4a", a:"Xiaoran Li & Sinje Lee" },
+  "青花瓷": { u:"https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/3a/15/ff/3a15ff0b-ee24-a863-db04-8a489be66397/mzaf_1259240667288251806.plus.aac.p.m4a", a:"周杰倫" },
+  "天亮了": { u:"https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/1b/c8/67/1bc867df-8148-51c1-003b-0a92cd55d40b/mzaf_18327311863318033344.plus.aac.p.m4a", a:"韓紅" },
+  "草原上升起不落的太阳": { u:"https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/3b/0c/8b/3b0c8b9d-9490-4fd9-ba1c-044c6f313bf3/mzaf_7384804924235625092.plus.aac.p.m4a", a:"華華" },
+  "月亮代表我的心": { u:"https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview221/v4/49/5c/c1/495cc1ec-9838-6edf-66d7-f38638646a85/mzaf_14093067573616253341.plus.aac.p.m4a", a:"鄧麗君" },
+  "心太软": { u:"https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/88/dd/2d/88dd2dbb-be38-5c8c-057d-2e172fa80baa/mzaf_1967138049508701543.plus.aac.p.m4a", a:"Tiger Hu" },
+  "从头再来": { u:"https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/26/6a/d7/266ad7bc-f5a0-23e2-22e2-ab4271c70be2/mzaf_1809906785059688889.plus.aac.p.m4a", a:"劉歡" },
+  "醉赤壁": { u:"https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview221/v4/ac/7f/37/ac7f3765-f425-bd74-8f13-fde2865d9136/mzaf_6566830801793434058.plus.aac.p.m4a", a:"林俊傑" },
+  "无地自容": { u:"https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview221/v4/fe/d2/da/fed2dadc-cb11-e746-a8e0-e82df6712e10/mzaf_8182537047237543909.plus.aac.p.m4a", a:"Black Panther" },
+  "凡人歌": { u:"https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview221/v4/f6/e7/01/f6e70133-5dc5-bcee-b9a5-818b3b3887df/mzaf_13340607560466976816.plus.aac.p.m4a", a:"李宗盛" },
+  "风中有朵雨做的云": { u:"https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview126/v4/27/0b/bf/270bbf21-17ba-4b10-1cc7-c9f2079e362d/mzaf_6379858052236992750.plus.aac.p.m4a", a:"Mai Meng" },
+  "2002年的第一场雪": { u:"https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview221/v4/df/a4/be/dfa4be47-7db7-c9a3-4e37-5d29d1c9edb6/mzaf_10754143315150366299.plus.aac.p.m4a", a:"刀郎" },
+  "南山南": { u:"https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview221/v4/07/f1/5a/07f15aaf-9d68-daed-7c70-c9e2904c1d6f/mzaf_7046538232798178206.plus.aac.p.m4a", a:"馬頔" },
+  "一剪梅": { u:"https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview221/v4/ed/46/89/ed4689fe-d5c8-ba55-c6a5-606552757ddd/mzaf_5171656342908237347.plus.aac.p.m4a", a:"費玉清" },
+  "春风十里": { u:"https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview221/v4/b7/c4/8d/b7c48dfc-8144-ba70-e1a9-54c13e493fd9/mzaf_1439006256635396772.plus.aac.p.m4a", a:"Sir Deer" },
+  "春天花会开": { u:"https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview125/v4/0e/20/3f/0e203f7e-0563-d73c-567a-b4e4e3db5555/mzaf_2480402864004178792.plus.aac.p.m4a", a:"任賢齊" },
+  "千里之外": { u:"https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview221/v4/1f/7d/8e/1f7d8e3a-5555-5f02-67c2-48175a962ce2/mzaf_9705650129739495572.plus.aac.p.m4a", a:"周杰倫" },
+  "沁园春·雪": { u:"https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/20/7a/43/207a434b-bca2-18f8-1d7d-5ef2ac435cdb/mzaf_11066081027577893903.plus.aac.p.m4a", a:"中唱群星" },
+  "桃花朵朵开": { u:"https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview115/v4/c6/af/3a/c6af3a91-9e54-8a8a-2a2a-1c8704a7a520/mzaf_10901915392924497926.plus.aac.p.m4a", a:"阿牛" },
+  "潇洒走一回": { u:"https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview221/v4/ce/d3/6c/ced36c31-872a-d1bf-7c50-ac3409941d5c/mzaf_4735220642573509971.plus.aac.p.m4a", a:"Sally Yeh" },
+  "少年": { u:"https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview124/v4/8c/9d/3f/8c9d3f90-6c42-3d36-b802-61a939f31a90/mzaf_12384318590569844927.plus.aac.p.m4a", a:"許歌淳一, 牛牛凱 & 陳雪濤" },
+  "曾经的你": { u:"https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview221/v4/a8/43/6c/a8436cdd-8caf-950d-2dae-70656772bc6c/mzaf_10422336988662340264.plus.aac.p.m4a", a:"Xu Wei" },
+  "过零丁洋": { u:"https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/3c/89/93/3c89932c-db12-7d17-5523-b6c75d0b850f/mzaf_13432040155366352504.plus.aac.p.m4a", a:"BabyBus" },
+  "精忠报国": { u:"https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview126/v4/06/ac/82/06ac82ff-f8b5-02dc-a783-e3d7761620b4/mzaf_1104226639991795553.plus.aac.p.m4a", a:"屠洪刚" },
+  "故乡的云": { u:"https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/6c/2d/53/6c2d5340-2962-4523-99d6-8819246e025b/mzaf_1611293441368819502.plus.aac.p.m4a", a:"Kris Phillips" },
+  "长大后我就成了你": { u:"https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/2d/bb/fd/2dbbfdc9-49d5-5964-4e20-62ba97bcbc88/mzaf_1506394586282037579.plus.aac.p.m4a", a:"Song Zu Ying" },
+  "叶子": { u:"https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview112/v4/f4/7d/f3/f47df3ce-1aff-3867-2208-e49fec833aad/mzaf_11830203890001576950.plus.aac.p.m4a", a:"Landy Wen & Han Tiantian" },
+  "寂寞寂寞就好": { u:"https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview115/v4/3f/5c/bf/3f5cbf80-cf7d-47bd-ca4f-f733dbe7eb6e/mzaf_11186607586721731408.plus.aac.p.m4a", a:"田馥甄" },
+  "我的歌声里": { u:"https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview221/v4/fd/0e/8e/fd0e8e85-529e-8dde-f5bf-73f35fb9330d/mzaf_10088429443974622349.plus.aac.p.m4a", a:"曲婉婷" },
+  "独家记忆": { u:"https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview221/v4/5f/e4/c6/5fe4c6be-988b-5c24-0a79-59e1d4538d4b/mzaf_16336351675557907004.plus.aac.p.m4a", a:"王濛 & Grace Chan" },
+  "黑色毛衣": { u:"https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/41/fd/0c/41fd0c9f-d41a-6227-3468-413405ea68cc/mzaf_16001321407593712643.plus.aac.p.m4a", a:"周杰倫" },
+  "红色高跟鞋": { u:"https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview221/v4/0f/a0/84/0fa08496-8e5c-6f80-69dd-b8c9b74b6956/mzaf_2136417834970121729.plus.aac.p.m4a", a:"Tanya Chua, Stringer, Della Wu, Tracy Wang & Julius" },
+  "相见不如怀念": { u:"https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview126/v4/cf/e0/58/cfe0586b-84aa-bfe4-17f2-0695b26bbd7d/mzaf_2247027411299702198.plus.aac.p.m4a", a:"Tarcy Su & Julius" },
+  "东风破": { u:"https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/24/bf/e5/24bfe57b-11ad-fa3d-b618-9986e9a52d7e/mzaf_7036137197905310462.plus.aac.p.m4a", a:"Choiyl" },
+  "水中花": { u:"https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview221/v4/b2/86/5c/b2865ca3-a83a-6ff7-ea75-b72fd9514945/mzaf_7007219463425953902.plus.aac.p.m4a", a:"郁可唯" },
+  "山青水秀": { u:"https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview122/v4/b9/61/c7/b961c719-ca75-f7cf-c5ec-16f7dd767d88/mzaf_12127669940905769814.plus.aac.p.m4a", a:"周旋" },
 };
+
+
