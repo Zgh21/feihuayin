@@ -279,9 +279,22 @@ function makeNpc(name,i){ return { id:'npc'+i, name, color:AVA_COLORS[(i+1)%AVA_
 function av(p,cls=''){ return `<div class="avatar ${cls}" style="background:linear-gradient(150deg,${p.color},${shade(p.color,-22)})" title="${esc(p.name)}">${esc(p.initial)}${p.isNpc?'':'<span class="dot"></span>'}</div>`; }
 function shade(hex,p){ const n=parseInt(hex.slice(1),16); let r=(n>>16)+p*2.55,g=((n>>8)&255)+p*2.55,b=(n&255)+p*2.55; r=Math.max(0,Math.min(255,r|0));g=Math.max(0,Math.min(255,g|0));b=Math.max(0,Math.min(255,b|0)); return '#'+((1<<24)+(r<<16)+(g<<8)+b).toString(16).slice(1); }
 
-/* 封面图：月/雨/风/夜用文档里的水墨背景板，其它字用渐变 + 笔触大字 */
-const BG_MAP = { '月':'assets/ink-moon.jpg','雨':'assets/ink-rain.jpg','风':'assets/ink-wind.jpg','夜':'assets/ink-night.jpg' };
+/* 封面图：月/雨/夜用文档里的水墨背景板，其余单字用生成的主题图（卡牌白字对应图中黑字诗句） */
+const BG_MAP = {
+  '月':'assets/ink-moon.jpg','雨':'assets/ink-rain.jpg','风':'assets/风.png','夜':'assets/ink-night.jpg',
+  '花':'assets/花主题图片生成.png',
+  '酒':'assets/花主题图片生成 (1).png',
+  '山':'assets/花主题图片生成 (2).png',
+  '水':'assets/花主题图片生成 (3).png',
+  '天':'assets/花主题图片生成 (4).png',
+  '心':'assets/花主题图片生成 (5).png',
+  '人':'assets/花主题图片生成 (6).png',
+  '云':'assets/花主题图片生成 (7).png',
+  '雪':'assets/花主题图片生成 (8).png',
+  '春':'assets/花主题图片生成 (9).png'
+};
 const BG_LIST = ['assets/ink-moon.jpg','assets/ink-rain.jpg','assets/ink-wind.jpg','assets/ink-night.jpg'];
+/* 卡面不再叠白色令字：题目统一显示在卡片下方标题处 */
 function bgFor(word){
   if(BG_MAP[word]) return BG_MAP[word];
   let h=0; for(const c of word) h=(h*131+c.charCodeAt(0))>>>0;
@@ -684,8 +697,7 @@ VIEWS.create = {
         const cls = off===0?'center':off===-1?'l1':off===-2?'l2':off===1?'r1':'r2';
         const d=document.createElement('div');
         d.className='cfcard '+cls;
-        d.innerHTML=`<div class="bg" style="background-image:url('${bgFor(w)}')"></div><div class="veil"></div>
-          <div class="in"><div class="gw serif">${esc(w)}</div></div>`;
+        d.innerHTML=`<div class="bg" style="background-image:url('${bgFor(w)}')"></div><div class="veil"></div>`;
         d.onclick=()=>{ if(off!==0){ S.cfIndex=i; paint(); } };
         track.appendChild(d);
       }
