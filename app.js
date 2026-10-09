@@ -24,27 +24,6 @@ const Voice = {
   speaking:false,
   ac(){ if(!this.ctx){ try{ this.ctx=new (window.AudioContext||window.webkitAudioContext)(); }catch(e){ this.ctx=null; } } if(this.ctx&&this.ctx.state==='suspended') this.ctx.resume(); return this.ctx; },
   cancel(){ try{ if(window.speechSynthesis) speechSynthesis.cancel(); }catch(e){} this.speaking=false; },
-  speak(text,opt={}){
-    if(!this.on){ return Promise.resolve(false); }
-    const clean=String(text||'').replace(/[（(][^）)]*[）)]/g,' ').replace(/[·—]/g,' ').trim();
-    if(!clean || !('speechSynthesis' in window)) return Promise.resolve(false);
-    this.cancel();
-    return new Promise(res=>{
-      let done=false; const fin=()=>{ if(done) return; done=true; this.speaking=false; res(true); };
-      const u=new SpeechSynthesisUtterance(clean);
-      u.lang='zh-CN'; u.rate=opt.rate||0.98; u.pitch=opt.pitch||1; u.volume=opt.volume||1;
-      try{
-        const vs=speechSynthesis.getVoices()||[];
-        const zh=vs.filter(v=>/zh|Chinese|中文|普通话/i.test((v.lang||'')+(v.name||'')));
-        const prefer=zh.find(v=>/Xiaoxiao|Xiaoyi|Huihui|Yaoyao|Tingting|Meijia|女|Female|Liang|Xiaochen/i.test((v.name||'')+(v.lang||'')));
-        if(prefer) u.voice=prefer; else if(zh.length) u.voice=zh[0];
-      }catch(e){}
-      u.onend=fin; u.onerror=fin;
-      this.speaking=true;
-      try{ speechSynthesis.speak(u); }catch(e){ fin(); }
-      setTimeout(fin, 1200+clean.length*260);
-    });
-  },
   beep(freq=880,dur=0.12,type='sine',vol=0.08){
     if(!this.on) return; const ac=this.ac(); if(!ac) return;
     const t=ac.currentTime, o=ac.createOscillator(), g=ac.createGain();
@@ -73,7 +52,6 @@ const Voice = {
   }
 };
 /* 让浏览器预加载语音列表 */
-try{ if('speechSynthesis' in window){ speechSynthesis.getVoices(); speechSynthesis.onvoiceschanged=()=>speechSynthesis.getVoices(); } }catch(e){}
 
 /* ============================================================
    麦克风录音：真的录下玩家自己的声音，并用这段真实音频回放
@@ -189,7 +167,8 @@ function tickPlayer(){ if(audioEl&&!audioEl.paused) paintPlayerBar({song:nowPlay
 let nowPlaying={song:'',artist:'',kind:'real'};
 
 /* 播放真实原唱片段；resolve(true/false) */
-function playReal(song, artist){
+let autoStopTimer=null;
+function playReal(song, artist, maxSec){
   Voice.cancel();
   return new Promise(resolve=>{
     const e=musicOf(song), a=getAudio();
@@ -198,30 +177,77 @@ function playReal(song, artist){
     paintPlayerBar({song,artist:artist||e.a,playing:false,kind:'real'});
     a.pause(); a.src=e.u; a.currentTime=0; a.volume=1;
     let settled=false;
-    const ok=()=>{ if(settled) return; settled=true; clearTimeout(to); clearInterval(playerTimer); playerTimer=setInterval(tickPlayer,300); paintPlayerBar({song,artist:artist||e.a,playing:true,kind:'real'}); resolve(true); };
+    const ok=()=>{ if(settled) return; settled=true; clearTimeout(to); clearInterval(playerTimer); playerTimer=setInterval(tickPlayer,300); paintPlayerBar({song,artist:artist||e.a,playing:true,kind:'real'});
+      if(maxSec){ clearTimeout(autoStopTimer); autoStopTimer=setTimeout(()=>{ try{ a.pause(); }catch(err){} clearInterval(playerTimer); paintPlayerBar({song,artist:artist||e.a,playing:false,kind:'real'}); }, maxSec*1000); }
+      resolve(true); };
     const bad=()=>{ if(settled) return; settled=true; clearTimeout(to); resolve(false); };
     a.addEventListener('playing',ok,{once:true});
     a.addEventListener('error',bad,{once:true});
     a.addEventListener('ended',()=>{ stopAllAudio(); },{once:true});
     const pr=a.play();
-    if(pr&&pr.catch) pr.catch(()=>setTimeout(()=>{ if(!settled && a.readyState>=2) ok(); else bad(); },300));
+    if(pr&&pr.catch) pr.catch(()=>{
+      /* 自动播放被拦：不要谎报“正在播放”，重试一次再交给上层兜底 */
+      setTimeout(()=>{
+        if(settled) return;
+        if(a.readyState>=2 && !a.paused){ ok(); return; }
+        const p2=a.play();
+        if(p2&&p2.catch) p2.catch(()=>bad());
+        else if(a.paused) bad();
+      },250);
+    });
     const to=setTimeout(()=>{ if(settled) return; if(a.readyState>=2) ok(); else bad(); },6000);
   });
 }
+/* 合成伴奏也纳入「是否还在响」的判断（Web Audio 不走 <audio> 元素） */
+let melodyUntil=0;
+function isAudioIdle(){
+  const a=audioEl;
+  const audioIdle = !a || !a.src || a.paused || a.ended;
+  return audioIdle && Date.now()>=melodyUntil;
+}
+/* 等上一位把音乐/伴奏彻底放完（最多等 maxMs） */
+function waitAudioIdle(maxMs=40000){
+  const a=audioEl;
+  const audioIdle = !a || !a.src || a.paused || a.ended;
+  const melodyMs = Math.max(0, melodyUntil - Date.now());
+  if(audioIdle && melodyMs<=0) return Promise.resolve();
+  return new Promise(res=>{
+    let done=false;
+    const fin=()=>{ if(done) return; done=true;
+      try{ if(a&&a.removeEventListener){ a.removeEventListener('ended',fin); a.removeEventListener('pause',fin); } }catch(e){}
+      clearTimeout(t1); clearTimeout(t2); res(); };
+    if(!audioIdle && a){ a.addEventListener('ended',fin); a.addEventListener('pause',fin); }
+    const t1=setTimeout(fin, Math.max(melodyMs,0));
+    const t2=setTimeout(fin, maxMs);
+  });
+}
+/* 无版权片段时的「合成伴奏」：只放旋律，绝不朗读 */
+function playMelodyOnly(song, sec){
+  const dur=(sec||8);
+  melodyUntil=Date.now()+dur*1000;
+  nowPlaying={song, artist:'合成伴奏', kind:'synth'};
+  paintPlayerBar({song, artist:'合成伴奏', playing:true, kind:'synth'});
+  Voice.melody(hash(song),{up:true,n:8});
+  return new Promise(r=>setTimeout(()=>{ paintPlayerBar({song,artist:'合成伴奏',playing:false,kind:'synth'}); r(false); }, dur*1000));
+}
+/* 自动播放：优先接入的真实原唱片段，没有则放合成伴奏（不会朗读） */
+function playAutoSong(song, maxSec){
+  if(!song || song==='—') return Promise.resolve(false);
+  const e=musicOf(song);
+  if(!e) return playMelodyOnly(song, Math.min(maxSec||10,8));
+  nowPlaying={song, artist:e.a, kind:'real'};
+  return playReal(song, e.a, maxSec||10);
+}
 function togglePlay(){ const a=getAudio(); if(!a.src) return; if(a.paused){ a.play(); paintPlayerBar({...nowPlaying,playing:true}); } else { a.pause(); paintPlayerBar({...nowPlaying,playing:false}); } }
 function stopAllAudio(){
+  clearTimeout(autoStopTimer); melodyUntil=0;
   try{ if(audioEl){ audioEl.pause(); audioEl.removeAttribute('src'); } }catch(e){}
   clearInterval(playerTimer); playerTimer=null; Voice.cancel(); hidePlayerBar();
 }
 /* 合成试听（回退） */
 async function synthListen(song, lyric, artist){
-  const art = artist || '合成试听';
-  nowPlaying={song,artist:art,kind:'synth'};
-  paintPlayerBar({song,artist:art,playing:true,kind:'synth'});
-  Voice.melody(hash(song),{up:true, n:8});
-  if(lyric) await Voice.speak(lyric);
-  else await new Promise(r=>setTimeout(r,2400));
-  paintPlayerBar({song,artist:art,playing:false,kind:'synth'});
+  /* 无版权片段：只放合成伴奏，不朗读歌词 */
+  await playMelodyOnly(song, 8);
 }
 
 /* 语音波形条 */
@@ -273,7 +299,13 @@ function go(view,params={}){
   if(S.view!==view) S.history.push(S.view);
   /* 离开某视图时清理它的定时器，避免孤儿定时器写到已卸载的 DOM */
   if(view!=='match'){ clearInterval(matchIv); clearTimeout(matchT); matchIv=null; matchT=null; }
-  if(view!=='room'){ clearInterval(timerHandle); if(S.room&&S.room.npcTimer) clearTimeout(S.room.npcTimer); }
+  if(view!=='room'){
+    clearInterval(timerHandle);
+    if(S.room){
+      if(S.view==='room') S.room.abandoned=true;   /* 只在真正离开房间时作废，防止陈旧异步误伤 */
+      if(S.room.npcTimer) clearTimeout(S.room.npcTimer);
+    }
+  }
   if(view!=='duel'){ clearInterval(duelTimer); }
   S.view=view; Object.assign(S,params);
   render();
@@ -450,7 +482,7 @@ function newRoom(type,word,mode,players,play){
   const room={ type, word, mode, play:pl,
     players, turn:0, round:1, max:3,
     feed:[], playlist:[], bombs:{},
-    log:[], over:false, awaiting:false, banned:null, npcTimer:null, tick:0 };
+    log:[], over:false, awaiting:false, banned:null, npcTimer:null, tick:0, abandoned:false };
   if(pl==='bomb'){ const bank=BANK[word]||[]; players.forEach((p,i)=>{ const e=bank[(i+1)%Math.max(1,bank.length)]||{s:'月亮之上'}; room.bombs[p.id]=e.s; }); }
   if(pl==='ban'){ const pool=['的','我','你','是','不','了','一']; room.banned=rnd(pool); }
   return room;
@@ -479,8 +511,12 @@ VIEWS.dealGame = {
 function cardFaceHTML(){
   return `<div class="face"><div class="core"></div></div>`;
 }
+let dealToken=0;
 async function dealSequence(){
-  const deck=$('#fandeck'), title=$('#dealtitle'), sub=$('#dealsub'), pointer=$('#pointer');
+  const my=++dealToken;
+  const alive=()=>my===dealToken && S.view==='dealGame';
+  const deck=$('#fandeck'); if(!deck) return;
+  const title=$('#dealtitle'), sub=$('#dealsub'), pointer=$('#pointer');
   const N=9, spread=15;
   const base=[]; for(let i=0;i<N;i++) base.push((i-(N-1)/2)*spread);
   deck.innerHTML='';
@@ -492,11 +528,13 @@ async function dealSequence(){
     deck.appendChild(c); cards.push(c);
   }
   await sleep(520);
+  if(!alive()) return;
   title.textContent='AI 出题官 · 正在发牌';
   sub.textContent='按住呼吸，牌要开了…';
   // 1) 扇开
   cards.forEach((c,i)=>{ c.style.transitionDuration='.72s'; c.style.transitionDelay=(i*26)+'ms'; c.style.transform=`rotate(${base[i]}deg)`; });
   await sleep(1050);
+  if(!alive()) return;
   // 2) 抖牌（洗牌感）
   deck.style.transition='transform .28s ease';
   deck.style.transform='rotate(4deg)'; await sleep(240);
@@ -507,6 +545,7 @@ async function dealSequence(){
   pointer.style.opacity=1;
   pointer.style.transform='translateX(-50%) translateY(6px)';
   await sleep(340);
+  if(!alive()) return;
   // 4) 选中：base 最接近 0 的那张（正好在指针正下方）
   let chosen=0,best=1e9;
   base.forEach((b,i)=>{ const d=Math.abs(((b%360)+360)%360); const dd=Math.min(d,360-d); if(dd<best){best=dd;chosen=i;} });
@@ -518,14 +557,17 @@ async function dealSequence(){
   cards[chosen].style.transition='transform .6s cubic-bezier(.2,.9,.3,1.1)';
   cards[chosen].style.transform=`rotate(${base[chosen]}deg) translateY(-16px) scale(1.22)`;
   await sleep(620);
+  if(!alive()) return;
   // 其余牌淡出
   cards.forEach((c,i)=>{ if(i!==chosen){ c.style.transition='transform .5s, opacity .5s'; c.style.opacity=0; c.style.transform=`rotate(${base[i]*1.5}deg) translateY(30px) scale(.9)`; } });
   // 翻面
   cards[chosen].style.transition='transform .55s ease, box-shadow .4s';
   cards[chosen].style.transform=`rotate(${base[chosen]}deg) translateY(-16px) scale(1.22) rotateY(180deg)`;
   await sleep(650);
+  if(!alive()) return;
   // 出结果
   const word = S.mode==='host' ? (S.hostPickWord||pickWord(S.selType)) : pickWord(S.selType);
+  if(!alive()) return;
   S.deal={word,type:S.selType};
   go('reveal');
 }
@@ -757,8 +799,8 @@ async function playVoiceText(btn, text, song, artist, audioUrl){
   Voice.beep(720,.07,'sine',.05);
   const found = song?{s:song,a:artist}:songForLyric(text);
   let ok=false;
-  if(found&&found.s) ok = await playReal(found.s, found.a);
-  if(!ok) await synthListen((found&&found.s)||'未收录曲目', text, (found&&found.a)||'');
+  if(found&&found.s) ok = await playReal(found.s, found.a, 12);
+  if(!ok) await playMelodyOnly((found&&found.s)||'未收录曲目', 6);
   btn.classList.remove('on'); btn.textContent='▶'; if(w) w.classList.remove('playing');
 }
 async function playVoice(btn, idx){
@@ -769,18 +811,21 @@ async function playVoice(btn, idx){
 }
 /* 播放玩家自己的真实录音（或其它 Blob 音频） */
 async function playClip(btn, url, title, sub){
-  const row=btn.closest('.voicerow'), w=row?row.querySelector('.wave'):null;
+  const row = btn && btn.closest ? btn.closest('.voicerow') : null;
+  const w = row ? row.querySelector('.wave') : null;
   const a=getAudio();
-  if(btn.classList.contains('on')){ stopAllAudio(); btn.classList.remove('on'); btn.textContent='▶'; if(w) w.classList.remove('playing'); return; }
+  if(btn && btn.classList.contains('on')){ stopAllAudio(); btn.classList.remove('on'); btn.textContent='▶'; if(w) w.classList.remove('playing'); return; }
   Voice.cancel();
-  btn.classList.add('on'); btn.textContent='❚❚'; if(w) w.classList.add('playing');
+  if(btn){ btn.classList.add('on'); btn.textContent='❚❚'; }
+  if(w) w.classList.add('playing');
   nowPlaying={song:title, artist:sub, kind:'voice'};
   a.pause(); a.src=url; a.currentTime=0;
   paintPlayerBar({song:title, artist:sub, playing:true, kind:'voice'});
   clearInterval(playerTimer); playerTimer=setInterval(tickPlayer,300);
   try{ await a.play(); }catch(err){}
   await new Promise(r=>{ let done=false; const h=()=>{ if(done) return; done=true; a.removeEventListener('ended',h); a.removeEventListener('error',h); r(); }; a.addEventListener('ended',h); a.addEventListener('error',h); });
-  btn.classList.remove('on'); btn.textContent='▶'; if(w) w.classList.remove('playing');
+  if(btn){ btn.classList.remove('on'); btn.textContent='▶'; }
+  if(w) w.classList.remove('playing');
 }
 /* 一起听原唱副歌（合成旋律 + 报歌名） */
 async function listenSong(el, song, artist){
@@ -846,13 +891,28 @@ function feedHTML(e){
 
 
 /* ---------------- 回合引擎 ---------------- */
-function startTurn(){
-  const r=S.room; if(r.over) return;
-  r.awaiting=false; turnDone=false;
+async function startTurn(){
+  const r=S.room; if(!r||r.over) return;
+  r.awaiting=false; turnDone=false; r.thinking=false;
   renderTabs();
   const p=curPlayer();
-  if(p.id==='me'){ renderRecBar(); startTimer(); }
-  else { renderRecBar(); npcThink(); }
+  const alive=()=>S.room===r && !r.over && !r.abandoned && curPlayer()===p;
+  if(p.id==='me'){
+    r.thinking = !isAudioIdle();                 /* 上一位还在放就先等 */
+    renderTabs(); renderRecBar();
+    if(r.thinking){
+      await waitAudioIdle();
+      if(!alive()) return;
+      r.thinking=false; renderTabs(); renderRecBar();
+    }
+    startTimer();
+  } else {
+    r.thinking=true; renderTabs(); renderRecBar();
+    await waitAudioIdle();                       /* ① 一定要等上一位把音乐放完 */
+    if(!alive()) return;
+    const gap=rint(5000,10000);                  /* ② 再间隔 5~10 秒才开口 */
+    r.npcTimer=setTimeout(()=>{ r.thinking=false; if(alive()) npcSing(p); }, gap);
+  }
 }
 function renderTabs(){
   const t=$('#ptabs'); if(!t) return;
@@ -861,12 +921,7 @@ function renderTabs(){
     return `<div class="ptab ${cur?'turn':''}">${av(p,'sm')}<span>${esc(p.name)}</span><span class="sc">${think?'…':p.score}</span></div>`;
   }).join('');
 }
-function npcThink(){
-  const r=S.room, p=curPlayer();
-  const delay=rint(3000,5000);            /* NPC 也「想一下」：3~5 秒不等 */
-  r.thinking=true; renderTabs(); renderRecBar();
-  r.npcTimer=setTimeout(()=>{ r.thinking=false; npcSing(p); }, delay);
-}
+/* NPC 的“思考”已并入 startTurn：等上一位放完 + 随机 5~10 秒 */
 function npcSing(p){
   const r=S.room;
   const bank=BANK[r.word]||[];
@@ -893,7 +948,7 @@ function advance(){
   const r=S.room; if(r.over) return;
   r.turn=(r.turn+1)%r.players.length;
   if(r.turn===0){ r.round++; if(r.round>r.max){ return settle(); } }
-  startTurn();
+  startTurn().catch(()=>{});
 }
 function addEntry(p,res){
   const r=S.room;
@@ -907,10 +962,15 @@ function addEntry(p,res){
     if(!r.playlist.find(x=>x.song===res.song)) r.playlist.push({song:res.song,artist:res.artist,by:p.name});
     // 第二层：同句归并
     const same=r.feed.find(e=>e.lyric===res.lyric);
-    if(same){ same.folded.push({who:p.name,color:p.color,initial:p.initial}); renderFeed(); if(Voice.on) Voice.speak(res.lyric); recordSkill(p); return; }
+    if(same){ same.folded.push({who:p.name,color:p.color,initial:p.initial}); renderFeed(); if(Voice.on){ if(res.audioUrl) playClip(null,res.audioUrl,'我的录音','接歌原声'); else playAutoSong(res.song,10); } recordSkill(p); return; }
   } else { p.streak=0; }
   r.feed.push(base); renderFeed(); renderTabs(); recordSkill(p);
-  if(Voice.on && res.lyric && !/^（/.test(res.lyric)) Voice.speak(res.lyric);
+  /* 直接放声音：玩家放自己刚录的原声，NPC 放接入的真实音乐片段（不再用 AI 朗读） */
+  if(Voice.on && !/^（/.test(res.lyric||'')){
+    if(base.audioUrl) playClip(null, base.audioUrl, '我的录音', base.song&&base.song!=='—'?('接歌 · '+base.song):'接歌原声');
+    else if(!p.isNpc) playAutoSong(base.song, 10);
+    else playAutoSong(base.song, 10);
+  }
   if(!res.ok){ inkFx(); }
 }
 function recordSkill(p){
@@ -930,7 +990,7 @@ function renderRecBar(){
   const mine=p.id==='me';
   bar.innerHTML=`
     <div class="turnhint">
-      <span>当前回合 · <b>${mine?'轮到你唱':esc(p.name)+' 正在接歌'}</b></span>
+      <span>当前回合 · <b>${mine?(r.thinking?'上一位还在唱，稍等…':'轮到你唱'):(esc(p.name)+(r.thinking?' 正在想…':' 正在接歌'))}</b></span>
       <span>${GAMEPLAYS[r.play].name} · ${turnSec()} 秒</span>
     </div>
     <div class="recrow">
@@ -1297,7 +1357,6 @@ function duelTurn(timeout,text){
   if(res.ok){ d.myScore++; aiReply=rnd(P.praise); }
   else { aiReply=rnd(P.tease)+'（关键词是「'+d.word+'」）'; }
   d.log.push({who:'ai',name:P.name,txt:aiReply});
-  if(Voice.on) Voice.speak(aiReply,{rate:1.02});
   d.round++;
   if(d.round>d.rounds){ setTimeout(()=>{ toast(`练习结束 · 我 ${d.myScore} : ${d.aiScore} ${P.name}`); renderDuel(); const l=$('#dreclabel'); if(l) l.textContent='练习结束'; const rb=$('#drec'); if(rb) rb.disabled=true; },600); }
   duelDone=false; duelResetTimer();               /* 立刻重置倒计时 */
@@ -1308,7 +1367,7 @@ function duelTurn(timeout,text){
     setTimeout(()=>{
       const bank=BANK[d.word]||BANK['月']; const e=rnd(bank);
       d.log.push({who:'ai',name:P.name,txt:e.l,hit:e.hit,song:e.s}); d.aiScore+=Math.random()<0.8?1:0; renderDuel();
-      if(Voice.on) Voice.speak(e.l);
+      if(Voice.on) playAutoSong(e.s, 10);
       const h2=$('#duelhint'); if(h2) h2.textContent='轮到你了';
       const l2=$('#dreclabel'); if(l2) l2.textContent='按住唱这一句';
     }, wait);
@@ -1477,7 +1536,7 @@ VIEWS.me = {
       <div class="card" style="padding:4px 14px">
         <div class="soundrow"><div><b class="serif" style="font-size:13px">接歌时长</b><div class="muted" style="font-size:11px">每回合限时，超时算负（文档原设定为 8 秒）</div></div>
           <div class="chips">${[8,15,20,30].map(x=>`<button class="chip ${S.turnSec===x?'active':''}" data-sec="${x}">${x}s</button>`).join('')}</div></div>
-        <div class="soundrow"><div><b class="serif" style="font-size:13px">接歌语音播放</b><div class="muted" style="font-size:11px">语音条优先播放真实原唱片段（30s）；暂无版权片段的歌曲自动改用合成试听</div></div><div class="switch ${Voice.on?'on':''}" id="swVoice"><i></i></div></div>
+        <div class="soundrow"><div><b class="serif" style="font-size:13px">接歌声音播放</b><div class="muted" style="font-size:11px">直接播放接入的真实原唱片段（不再 AI 朗读）；无版权片段时只放合成伴奏</div></div><div class="switch ${Voice.on?'on':''}" id="swVoice"><i></i></div></div>
         <div class="soundrow"><div><b class="serif" style="font-size:13px">默认不留档</b><div class="muted" style="font-size:11px">本局音频默认不进「字·飞花总库」</div></div><div class="switch on"><i></i></div></div>
         <div class="soundrow"><div><b class="serif" style="font-size:13px">授权用于 AI 训练</b><div class="muted" style="font-size:11px">让 AI 1v1 更懂「人会怎么接」</div></div><div class="switch on"><i></i></div></div>
       </div>
