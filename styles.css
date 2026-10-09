@@ -554,3 +554,20 @@ h1,h2,h3,h4{margin:0;font-family:var(--serif);font-weight:700;letter-spacing:.04
 .holdingwave.live i{animation:none!important;transition:height .07s linear;background:#fff}
 .micdot{display:inline-block;width:7px;height:7px;border-radius:50%;background:#fff;animation:micp 1s infinite}
 @keyframes micp{0%,100%{opacity:.35}50%{opacity:1}}
+
+/* ---------- 私下开房：统一为浅底深字（去掉白字） ---------- */
+.cfstage{background:linear-gradient(180deg,var(--paper-2),var(--paper))}
+.cfstage .title{color:var(--ink-2);letter-spacing:.18em}
+.cfstage .title small{color:var(--ink-3);opacity:.9}
+.cfctrl{color:var(--ink-2)}
+.cfctrl h3{color:var(--ink)}
+.cfctrl p{color:var(--ink-3)}
+.cfnav button{border:1px solid var(--line);background:var(--paper-2);color:var(--ink)}
+.cfnav button:active{background:var(--paper-3)}
+.cfdots i{background:var(--line)}
+.cfdots i.on{background:var(--cinnabar)}
+.cfcard{box-shadow:0 14px 30px rgba(60,50,35,.22)}
+.darkbar{background:var(--paper-2);border-top:1px solid var(--line)}
+
+/* 「换一换」用胶囊形，不要被圆形箭头规则挤成竖排 */
+.cfnav button.btn{width:auto;height:46px;border-radius:999px;padding:0 20px;font-size:13px;white-space:nowrap}

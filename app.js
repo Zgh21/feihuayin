@@ -631,7 +631,7 @@ VIEWS.create = {
         <div class="cfdots" id="cfdots"></div>
       </div>
     </div>
-    <div style="padding:12px 20px 24px;background:#141210">
+    <div class="darkbar" style="padding:12px 20px 24px">
       <div class="chips" style="margin-bottom:12px" id="cfplays">
         ${Object.entries(GAMEPLAYS).filter(([k])=>k!=='tail').map(([k,g])=>`<button class="chip ${S.roomPlay===k?'active':''}" data-play="${k}">${g.name}</button>`).join('')}
       </div>
@@ -652,7 +652,7 @@ VIEWS.create = {
         const d=document.createElement('div');
         d.className='cfcard '+cls;
         d.innerHTML=`<div class="bg" style="background-image:url('${bgFor(w)}')"></div><div class="veil"></div>
-          <div class="in"><div class="gw serif">${esc(w)}</div><div class="nm">${TYPE_META[S.selType].name}</div><div class="lvtag">${TYPE_META[S.selType].lv}</div></div>`;
+          <div class="in"><div class="gw serif">${esc(w)}</div></div>`;
         d.onclick=()=>{ if(off!==0){ S.cfIndex=i; paint(); } };
         track.appendChild(d);
       }
