@@ -256,7 +256,7 @@ function durText(){ return '0:0'+rint(3,9); }
 /* ---------------- 状态 ---------------- */
 const S = {
   view:'home', history:[],
-  selType:'single', prefs:{lang:[],era:[],genre:[],singer:[]}, prefsOpen:false,
+  selType:'single', prefs:{lang:[],era:[],genre:[],singer:[]}, prefsOpen:false, advOpen:false,
   mode:'random',           // random(在线组队) / host(私房) / duel(人机)
   deal:{word:null,type:null},
   room:null,
@@ -365,30 +365,36 @@ VIEWS.home = {
           </div>`).join('')}
       </div>
 
-      <div class="sec-title">选择飞花令类型 <span class="tag red">必选</span></div>
-      <div class="typelist" id="typelist">
-        ${Object.entries(TYPE_META).map(([k,m])=>`
-          <div class="typerow ${S.selType===k?'active':''}" data-type="${k}">
-            <div class="lv serif">${m.icon}</div>
-            <div class="tx"><b>${m.name} <span class="tag">${m.lv}</span></b><p>${m.desc}</p></div>
-            <div class="ok">✓</div>
-          </div>`).join('')}
+      <div class="sec-title" id="advhead" style="cursor:pointer">
+        <span>【高级选项】</span>
+        <span id="advarrow" style="margin-left:auto;font-size:18px">${S.advOpen?'▾':'▸'}</span>
       </div>
-
-      <div class="sec-title">曲库偏好 <span class="muted" style="font-size:11px;font-weight:400">可选 · 默认不限</span></div>
-      <div class="prefbox">
-        <div class="prefhead" id="prefhead">
-          <div><b class="serif">缩小范围</b><div class="muted" style="font-size:11px;margin-top:3px">语种 / 年代 / 曲风 / 歌手专场</div></div>
-          <span id="prefarrow" style="font-size:18px">${S.prefsOpen?'▾':'▸'}</span>
+      <div id="advbody" style="${S.advOpen?'':'display:none'}">
+        <div class="sec-title">选择飞花令类型 <span class="tag red">必选</span></div>
+        <div class="typelist" id="typelist">
+          ${Object.entries(TYPE_META).map(([k,m])=>`
+            <div class="typerow ${S.selType===k?'active':''}" data-type="${k}">
+              <div class="lv serif">${m.icon}</div>
+              <div class="tx"><b>${m.name} <span class="tag">${m.lv}</span></b><p>${m.desc}</p></div>
+              <div class="ok">✓</div>
+            </div>`).join('')}
         </div>
-        <div class="prefbody" id="prefbody" style="${S.prefsOpen?'':'display:none'}">
-          ${Object.entries(LIB_PREFS).map(([g,arr])=>{
-            const lv={lang:'语种',era:'年代',genre:'曲风',singer:'歌手'}[g];
-            return `<div class="prefrow"><div class="lb">${lv}</div><div class="chips">
-              ${arr.map(x=>`<button class="chip jade ${S.prefs[g].includes(x)?'active':''}" data-pref="${g}" data-val="${x}">${x}</button>`).join('')}
-            </div></div>`;
-          }).join('')}
-          <div class="pill-note">AI 会据此从对应曲库出题（勾粤语即从粤语歌出字），并优先匹配口味相近者。不强制、不影响开局。</div>
+
+        <div class="sec-title">曲库偏好 <span class="muted" style="font-size:11px;font-weight:400">可选 · 默认不限</span></div>
+        <div class="prefbox">
+          <div class="prefhead" id="prefhead">
+            <div><b class="serif">缩小范围</b><div class="muted" style="font-size:11px;margin-top:3px">语种 / 年代 / 曲风 / 歌手专场</div></div>
+            <span id="prefarrow" style="font-size:18px">${S.prefsOpen?'▾':'▸'}</span>
+          </div>
+          <div class="prefbody" id="prefbody" style="${S.prefsOpen?'':'display:none'}">
+            ${Object.entries(LIB_PREFS).map(([g,arr])=>{
+              const lv={lang:'语种',era:'年代',genre:'曲风',singer:'歌手'}[g];
+              return `<div class="prefrow"><div class="lb">${lv}</div><div class="chips">
+                ${arr.map(x=>`<button class="chip jade ${S.prefs[g].includes(x)?'active':''}" data-pref="${g}" data-val="${x}">${x}</button>`).join('')}
+              </div></div>`;
+            }).join('')}
+            <div class="pill-note">AI 会据此从对应曲库出题（勾粤语即从粤语歌出字），并优先匹配口味相近者。不强制、不影响开局。</div>
+          </div>
         </div>
       </div>
 
@@ -410,6 +416,7 @@ VIEWS.home = {
     ${S.view==='home'?'':''}`;
   },
   mount(){
+    $('#advhead').onclick=()=>{ S.advOpen=!S.advOpen; render(); };
     $$('#typelist .typerow').forEach(el=>el.onclick=()=>{ S.selType=el.dataset.type; render(); });
     $('#prefhead').onclick=()=>{ S.prefsOpen=!S.prefsOpen; render(); };
     $$('[data-pref]').forEach(el=>el.onclick=()=>{
